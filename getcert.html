@@ -1,0 +1,88 @@
+<html>
+<head>
+<script>
+    function arrayBufferToBase64String(arrayBuffer) {
+        var byteArray = new Uint8Array(arrayBuffer)
+        var byteString = '';
+
+        for (var i=0; i<byteArray.byteLength; i++) {
+            byteString += String.fromCharCode(byteArray[i]);
+        }
+
+        return btoa(byteString);
+    }
+
+    function convertBinaryToPem(binaryData, label) {
+        var base64Cert = arrayBufferToBase64String(binaryData);
+
+	//return base64Cert;
+        var pemCert = "-----BEGIN " + label + "-----\r\n";
+
+        var nextIndex = 0;
+        var lineLength;
+        while (nextIndex < base64Cert.length) {
+            if (nextIndex + 64 <= base64Cert.length) {
+                pemCert += base64Cert.substr(nextIndex, 64) + "\r\n";
+            } else {
+                pemCert += base64Cert.substr(nextIndex) + "\r\n";
+            }
+            nextIndex += 64;
+        }
+
+        pemCert += "-----END " + label + "-----\r\n";
+        return pemCert;
+    }
+
+    function createCertificate() {
+
+  window.crypto.subtle.generateKey(
+            {
+                name: "RSASSA-PKCS1-v1_5",
+                //name: "RSA-OAEP",
+                //name: "RSA-PSS",
+                modulusLength: 2048,
+                publicExponent: new Uint8Array([1, 0, 1]),
+                hash: {name: "SHA-256"}
+                //hash: {name: "SHA-1"}
+            },
+            true,   // Must extract private key to create PEM files later
+            ["sign", "verify"]).
+        then(function(newKeyPair) {
+		console.log(newKeyPair);
+		//window.crypto.subtle.importKeypair(newKeyPair);
+		window.crypto.subtle.exportKey('spki', newKeyPair.publicKey).
+            then(function(spki) {
+		console.log(spki);
+                var pemPublicKey = convertBinaryToPem(spki, "PUBLIC KEY");
+		console.log(pemPublicKey);
+                document.getElementById("key").textContent = pemPublicKey;
+            });
+        });
+}
+
+document.addEventListener("DOMContentLoaded", function() {
+    "use strict";
+    if (window.crypto && !window.crypto.subtle && window.crypto.webkitSubtle) {
+        window.crypto.subtle = window.crypto.webkitSubtle;
+    }
+    if (!window.crypto || !window.crypto.subtle) {
+        alert("Your browser does not support the Web Cryptography API! This page will not work.");
+        return;
+    }
+    document.getElementById("create-certificate").addEventListener("click", createCertificate);
+
+    // Click handler and helper functions go here
+	createCertificate();
+});
+
+</script>
+</head>
+<body>
+automatisch
+<form method='post' action='genclientcert_keygen.php'><keygen name='spkac' /><input type='submit' name='createcert' value='get certificate'><input type='hidden' name='cn' value='smartrns'><input type='hidden' name='days' value='1'></form>
+manuell eingeben
+<form method='post' action='genclientcert_keygen.php'><textarea name='pubkey' id='key'></textarea><input type='submit' name='createcert' value='get certificate'><input type='hidden' name='cn' value='smartrns'><input type='hidden' name='days' value='1'></form>
+key erstellen
+<button id="create-certificate">Create Certificate</button>
+</body>
+</html>
