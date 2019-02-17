@@ -13,36 +13,82 @@ $dn['organizationName'] = "";
 $dn['organizationalUnitName'] = "";
 $ClientCertMaxDays = 1;
 
-function gencert($publickey, $cacert, $cakey, $dn, $e, $serial, $days = 365)
+function gencert($publickey, $cacert, $cakey, $dn, $e, $serial, $days = 365, $csr="")
 {
-        #$caPrivateKey = new Crypt_RSA();
-        $caPrivateKey = new phpseclib\Crypt\RSA();
-        $caPrivateKey->loadKey($cakey);
+        #$caPrivateKey = new phpseclib\Crypt\RSA();
+        #$caPrivateKey->loadKey($cakey);
 
-        $issuer = new phpseclib\File\X509();
-        $issuer->loadX509($cacert);
-        $issuer->setPrivateKey($caPrivateKey);
+	$caPrivateKey = openssl_pkey_get_private($cakey);
 
-	$pubKey = new phpseclib\Crypt\RSA(); 
-	$pubKey->loadKey($publickey); 
+        #$issuer = new phpseclib\File\X509();
+        #$issuer->loadX509($cacert);
+        #$issuer->setPrivateKey($caPrivateKey);
 
-    	$subject = new phpseclib\File\X509();
-        $subject->loadCA($cacert);
-        #$subject->loadSPKAC($spkac);
-	$subject->setPublicKey($pubKey);
-        $subject->setDNProp('CN', $dn['commonName']);
-        $subject->setDNProp('C' , $dn['countryName']);
-        $subject->setDNProp('ST', $dn['stateOrProvinceName']);
-        $subject->setDNProp('O' , $dn['organizationName']);
-        $subject->setDNProp('OU', $dn['organizationalUnitName']);
-        $subject->setDNProp('emailAddress' , $e);
+	$issuer = openssl_x509_read($cacert);
 
-        $x509 = new phpseclib\File\X509();
-        $x509->setSerialNumber($serialNumber = $serial, 10);
-        $x509->setEndDate('+'.$days.' days');
-        $result = $x509->sign($issuer, $subject);
-        $format = (false !== strpos($_SERVER['HTTP_USER_AGENT'], 'Chrome')) ? 1 : 0;
-        return $x509->saveX509($result, $format);
+
+	#$pubKey = new phpseclib\Crypt\RSA(); 
+	#$pubKey->loadKey($publickey); 
+
+	#$pubKey = openssl_pkey_get_public($publickey);
+	$pubKey = $publickey;
+
+    	#$subject = new phpseclib\File\X509();
+        #$subject->loadCA($cacert);
+	#$subject->setPublicKey($pubKey);
+        #$subject->setDNProp('CN', $dn['commonName']);
+        #$subject->setDNProp('C' , $dn['countryName']);
+        #$subject->setDNProp('ST', $dn['stateOrProvinceName']);
+        #$subject->setDNProp('O' , $dn['organizationName']);
+        #$subject->setDNProp('OU', $dn['organizationalUnitName']);
+        #$subject->setDNProp('emailAddress' , $e);
+	#$subject->setDomain("srns.tld", "sub.srns.tls");
+	#$subject->loadCSR($subject->saveCSR($subject->signCSR()));
+	#$subject->setExtension("id-ce-subjectAltName", [['dNSName' => 'srns.net.sub'], ['dNSName' => 'de.srns.net.sub'], ['dNSName' => 'net.srns.net.sub']]);
+	#$subject->saveCSR($subject->signCSR());
+
+
+
+	$countryName = "UK";
+   	$stateOrProvinceName = "London";
+   	$localityName = "Blah";
+   	$organizationName = "Blah1";
+   	$organizationalUnitName = "Blah2";
+   	$commonName = "Joe Bloggs";
+       	$emailAddress = "openssl@domain.com";
+            
+      	$dn = array(
+         "countryName" => $countryName,
+         "stateOrProvinceName" => $stateOrProvinceName,
+         "localityName" => $localityName,
+         "organizationName" => $organizationName,
+         "organizationalUnitName" => $organizationalUnitName,
+         "commonName" => $commonName,
+         "emailAddress" => $emailAddress
+         );
+ 
+
+	#$subject = openssl_csr_new($dn, $pubKey);
+	$subject = $csr;
+
+        #$x509 = new phpseclib\File\X509();
+        #$x509->setSerialNumber($serialNumber = $serial, 10);
+        #$x509->setEndDate('+'.$days.' days');
+	#$x509->loadCSR($x509->saveCSR($x509->signCSR()));
+	#$x509->setExtension("id-ce-subjectAltName", [['dNSName' => 'srns.net'], ['dNSName' => 'de.srns.net'], ['dNSName' => 'net.srns.net']]);
+	#$x509->saveCSR($x509->signCSR());
+        #$result = $x509->sign($issuer, $subject);
+
+
+
+	$CA_KEY="ca/private/enc.ca.key.pem";
+	$CA_CERT="ca/certs/ca.cert.pem";
+	$result = openssl_csr_sign($subject, "file://$CA_CERT", array(file_get_contents($CA_KEY), "12345678"), 1);
+	openssl_x509_export($result, $certout);
+
+        #$format = (false !== strpos($_SERVER['HTTP_USER_AGENT'], 'Chrome')) ? 1 : 0;
+        #return $x509->saveX509($result, $format);
+	return $certout;
 }
 
 $caKey = file_get_contents($CA_KEY);
@@ -54,7 +100,7 @@ error_log("caKey = ". $caKey);
 $cn    = $_POST['cn'];
 $days  = $_POST['days'];
 $pubkey = $_POST['pubkey'];
-
+$csr = $_POST['csr'];
 
 error_log("cn = ". $cn);
 error_log("days = ". $days);
@@ -81,7 +127,7 @@ $serial = hexdec('133700000000');
 
 Header("Content-Type: application/x-x509-user-cert");
 
-echo gencert($pubkey, $caCert, $caKey, $dn, $cn, $serial, $days);
+echo gencert($pubkey, $caCert, $caKey, $dn, $cn, $serial, $days, $csr);
 
 
 end:
